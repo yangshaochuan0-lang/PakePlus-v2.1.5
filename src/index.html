@@ -314,8 +314,8 @@
             </div>
             <div class="mb-4">
                 <div class="flex space-x-2 items-center">
-                    <input type="text" id="new-category-name" class="input-field flex-1" placeholder="输入新分类名称">
-                    <input type="color" id="new-category-color" class="w-10 h-10 rounded border-0 cursor-pointer" value="#3B82F6">
+                    <input type="text" id="cost-category-name" class="input-field flex-1" placeholder="输入新分类名称">
+                    <input type="color" id="cost-category-color" class="w-10 h-10 rounded border-0 cursor-pointer" value="#3B82F6">
                     <button id="add-category" class="btn btn-primary">
                         <i class="fa fa-plus"></i> 添加
                     </button>
@@ -341,8 +341,8 @@
                 </div>
                 <div class="mb-6">
                     <div class="flex space-x-2">
-                        <input type="text" id="pricing-category-input" class="input-field flex-1" placeholder="输入新分类名称">
-                        <button id="pricing-add-category-btn" class="btn btn-primary">
+                        <input type="text" id="new-category-name" class="input-field flex-1" placeholder="输入新分类名称">
+                        <button onclick="addNewPricingCategory()" class="btn btn-primary">
                             <i class="fa fa-plus"></i> 添加
                         </button>
                     </div>
@@ -355,14 +355,7 @@
                 </div>
             </div>
         </div>
-
-                        <!-- Categories will be dynamically generated here -->
-                    </div>
-                
-                
-
-            
-        
+    </div> 
     
 
     <!-- Edit Link Modal -->
@@ -475,6 +468,15 @@
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-6">
+        
+        <!-- 页面加载完成后初始化定价工具 -->
+        <script>
+            // 当页面加载完成时初始化定价工具
+            window.addEventListener('load', function() {
+                console.log('页面加载完成，初始化定价工具...');
+                initPricingTool();
+            });
+        </script>
         
         <script>
             // 导出规格编码到Excel - 完全重写版
@@ -1501,19 +1503,68 @@
             }
             
             function addNewPricingCategory() {
+                console.log('=== 开始添加新分类 ===');
                 const categoryName = document.getElementById('new-category-name').value.trim();
+                console.log('新分类名称:', categoryName);
+                
                 if (categoryName) {
                     if (!pricingData.categories.includes(categoryName)) {
+                        // 添加新分类到数据中
                         pricingData.categories.push(categoryName);
+                        console.log('分类已添加到数据，当前分类列表:', pricingData.categories);
+                        
+                        // 保存数据
                         savePricingData();
+                        console.log('数据已保存到localStorage');
+                        
+                        // 更新分类管理模态框中的列表
                         renderPricingCategoriesList();
+                        console.log('分类管理列表已更新');
+                        
+                        // 立即更新所有分类选择器
                         updatePricingCategorySelects();
+                        console.log('分类选择器已更新');
+                        
+                        // 保存所有卡片的展开状态
+                        const expandedStates = {};
+                        document.querySelectorAll('.link-header').forEach(header => {
+                            const index = header.getAttribute('data-index');
+                            const isExpanded = !header.nextElementSibling.classList.contains('hidden');
+                            expandedStates[index] = isExpanded;
+                        });
+                        console.log('保存的展开状态:', expandedStates);
+                        
+                        // 重新渲染链接列表以显示新的分类
+                        renderLinks();
+                        console.log('链接列表已重新渲染');
+                        
+                        // 恢复之前的展开状态
+                        setTimeout(() => {
+                            document.querySelectorAll('.link-header').forEach(header => {
+                                const index = header.getAttribute('data-index');
+                                const content = header.nextElementSibling;
+                                const icon = header.querySelector('.link-toggle-icon');
+                                
+                                if (expandedStates[index]) {
+                                    content.classList.remove('hidden');
+                                    if (icon) {
+                                        icon.style.transform = 'rotate(180deg)';
+                                    }
+                                }
+                            });
+                            console.log('已恢复展开状态');
+                        }, 50);
+                        
+                        // 清空输入框并显示成功提示
                         document.getElementById('new-category-name').value = '';
                         showToast('成功', '分类已添加', 'success');
+                        console.log('=== 添加分类完成 ===');
                     } else {
+                        console.log('分类名称已存在:', categoryName);
                         showToast('错误', '分类名称已存在', 'error');
                     }
                 } else {
+                    console.log('分类名称为空');
                     showToast('错误', '请输入分类名称', 'error');
                 }
             }
@@ -1599,44 +1650,65 @@
             }
             
             function updatePricingCategorySelects() {
-                const selects = document.querySelectorAll(
-                    '#link-category-filter, #add-link-category, #edit-link-category, #edit-product-category'
-                );
+                console.log('=== 开始更新分类选择器 ===');
+                console.log('当前分类数据:', pricingData.categories);
                 
-                selects.forEach(select => {
-                    const currentValue = select.value;
-                    const isFilterSelect = select.id === 'link-category-filter';
-                    
-                    select.innerHTML = '';
-                    
-                    // 如果是筛选器，添加"全部分类"选项
-                    if (isFilterSelect) {
-                        const option = document.createElement('option');
-                        option.value = '';
-                        option.textContent = '全部分类';
-                        select.appendChild(option);
-                    }
-                    
-                    // 添加所有分类选项
-                    pricingData.categories.forEach(category => {
-                        const option = document.createElement('option');
-                        option.value = category;
-                        option.textContent = category;
-                        select.appendChild(option);
-                    });
-                    
-                    // 恢复当前选中值
-                    if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-                        select.value = currentValue;
-                    } else if (pricingData.categories.length > 0) {
-                        select.value = isFilterSelect ? '' : pricingData.categories[0];
+                // 定义需要更新的select元素ID列表
+                const selectIds = ['link-category-filter', 'add-link-category', 'edit-link-category', 'edit-product-category'];
+                
+                selectIds.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    if (select) {
+                        console.log(`更新选择器: ${selectId}`);
+                        const currentValue = select.value;
+                        const isFilterSelect = selectId === 'link-category-filter';
+                        
+                        // 清空现有选项
+                        select.innerHTML = '';
+                        
+                        // 如果是筛选器，添加"全部分类"选项
+                        if (isFilterSelect) {
+                            const option = document.createElement('option');
+                            option.value = '';
+                            option.textContent = '全部分类';
+                            select.appendChild(option);
+                        }
+                        
+                        // 添加所有分类选项
+                        pricingData.categories.forEach(category => {
+                            const option = document.createElement('option');
+                            option.value = category;
+                            option.textContent = category;
+                            select.appendChild(option);
+                        });
+                        
+                        // 恢复当前选中值
+                        if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+                            select.value = currentValue;
+                        } else if (pricingData.categories.length > 0) {
+                            select.value = isFilterSelect ? '' : pricingData.categories[0];
+                        }
+                        
+                        console.log(`选择器 ${selectId} 更新完成，当前值: ${select.value}`);
+                    } else {
+                        console.log(`警告: 选择器 ${selectId} 未找到`);
                     }
                 });
+                
+                console.log('=== 分类选择器更新完成 ===');
             }
             
             // 保存定价数据
             function savePricingData() {
                 localStorage.setItem('pricingData', JSON.stringify(pricingData));
+            }
+            
+            // 初始化定价工具
+            function initPricingTool() {
+                console.log('=== 初始化定价工具 ===');
+                loadPricingData();
+                updatePricingCategorySelects();
+                console.log('=== 定价工具初始化完成 ===');
             }
             
             // 渲染链接管理
@@ -3798,10 +3870,7 @@
                             </div>
                             <div class="flex items-center space-x-2">
                                 <select id="link-category-filter" class="input-field w-40">
-                                    <option value="">全部分类</option>
-                                    <option value="electronics">电子产品</option>
-                                    <option value="clothing">服装</option>
-                                    <option value="home">家居</option>
+                                    <!-- 选项将通过JavaScript动态生成 -->
                                 </select>
                                 <button id="manage-categories" class="btn btn-secondary w-10 h-10 flex items-center justify-center" onclick="openPricingCategoryModal()" title="分类管理">
                                     <i class="fa fa-cog"></i>
@@ -4258,8 +4327,8 @@
             </div>
             <div class="mb-4">
                 <div class="flex space-x-2 items-center">
-                    <input type="text" id="new-category-name" class="input-field flex-1" placeholder="输入新分类名称">
-                    <input type="color" id="new-category-color" class="w-10 h-10 rounded border-0 cursor-pointer" value="#3B82F6">
+                    <input type="text" id="cost-category-name" class="input-field flex-1" placeholder="输入新分类名称">
+                    <input type="color" id="cost-category-color" class="w-10 h-10 rounded border-0 cursor-pointer" value="#3B82F6">
                     <button id="add-category" class="btn btn-primary">
                         <i class="fa fa-plus"></i> 添加
                     </button>
@@ -4284,8 +4353,8 @@
             </div>
             <div class="mb-4">
                 <div class="flex space-x-2 items-center">
-                    <input type="text" id="new-category-name" class="input-field flex-1" placeholder="输入新分类名称">
-                    <input type="color" id="new-category-color" class="w-10 h-10 rounded border-0 cursor-pointer" value="#3B82F6">
+                    <input type="text" id="cost-category-name" class="input-field flex-1" placeholder="输入新分类名称">
+                    <input type="color" id="cost-category-color" class="w-10 h-10 rounded border-0 cursor-pointer" value="#3B82F6">
                     <button id="add-category" class="btn btn-primary">
                         <i class="fa fa-plus"></i> 添加
                     </button>
@@ -4832,25 +4901,9 @@
             });
             
             // 添加分类按钮事件
-            document.getElementById('pricing-add-category-btn').addEventListener('click', function() {
-                const categoryName = document.getElementById('pricing-category-input').value.trim();
-                if (categoryName) {
-                    if (!pricingData.categories.includes(categoryName)) {
-                        pricingData.categories.push(categoryName);
-                        renderPricingCategoriesList();
-                        document.getElementById('pricing-category-input').value = '';
-                        savePricingData();
-                    } else {
-                        alert('该分类已存在！');
-                    }
-                } else {
-                    alert('请输入分类名称！');
-                }
-            });
-
             document.getElementById('add-category').addEventListener('click', function() {
-                const categoryName = document.getElementById('new-category-name').value.trim();
-                const categoryColor = document.getElementById('new-category-color').value;
+                const categoryName = document.getElementById('cost-category-name').value.trim();
+                const categoryColor = document.getElementById('cost-category-color').value;
                 const costType = this.getAttribute('data-cost-type');
                 
                 if (categoryName) {
@@ -4865,8 +4918,8 @@
                         saveData();
                         renderCategoriesList(costType);
                         updateCategoryFilters();
-                        document.getElementById('new-category-name').value = '';
-                        document.getElementById('new-category-color').value = '#3B82F6'; // 重置为默认颜色
+                        document.getElementById('cost-category-name').value = '';
+                        document.getElementById('cost-category-color').value = '#3B82F6'; // 重置为默认颜色
                         showToast('成功', '分类已添加', 'success');
                     } else {
                         showToast('错误', '分类名称已存在', 'error');
@@ -6036,14 +6089,14 @@
                             </div>
                             
                             <div class="mb-4">
-                                <label for="advertising-fee-${index}" class="block text-sm font-medium text-gray-700 mb-1">广告费 (元)</label>
+                                <label for="advertising-fee-${product.id}" class="block text-sm font-medium text-gray-700 mb-1">广告费 (元)</label>
                                 <div class="flex">
-                                    <input type="number" id="advertising-fee-${index}" 
+                                    <input type="number" id="advertising-fee-${product.id}" 
                                         class="input-field" step="0.01" min="0" 
                                         value="${product.advertisingFee}" 
-                                        data-product-index="${index}">
+                                        data-product-id="${product.id}">
                                     <button class="btn btn-primary ml-2 update-advertising" 
-                                        data-product-index="${index}">更新</button>
+                                        data-product-id="${product.id}">更新</button>
                                 </div>
                             </div>
                             
@@ -6114,17 +6167,46 @@
                 });
             });
             
+            // 移除之前的事件监听器，避免重复绑定
+            document.querySelectorAll('.update-advertising').forEach(btn => {
+                btn.replaceWith(btn.cloneNode(true));
+            });
+            
             // 添加广告费更新事件
             document.querySelectorAll('.update-advertising').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const index = parseInt(this.getAttribute('data-product-index'));
-                    const input = document.getElementById(`advertising-fee-${index}`);
+                    const productId = this.getAttribute('data-product-id');
+                    const input = document.getElementById(`advertising-fee-${productId}`);
+                    
+                    if (!input) {
+                        console.error(`输入框未找到: advertising-fee-${productId}`);
+                        showToast('错误', '输入框未找到', 'error');
+                        return;
+                    }
+                    
                     const value = parseFloat(input.value) || 0;
                     
-                    if (productData[index]) {
-                        productData[index].advertisingFee = value;
-                        productData[index].netProfit = productData[index].totalRevenue - 
-                            productData[index].totalCost - value;
+                    const product = productData.find(p => p.id === productId);
+                    if (product) {
+                        // 更新广告费
+                        product.advertisingFee = value;
+                        
+                        // 重新计算净利润，考虑快递续重费
+                        const additionalShippingFee = parseFloat(document.getElementById('additional-shipping-fee').value) || 0;
+                        if (additionalShippingFee > 0) {
+                            const totalQuantity = productData.reduce((sum, p) => sum + p.totalQuantity, 0);
+                            if (totalQuantity > 0) {
+                                const allocatedShippingFee = (product.totalQuantity / totalQuantity) * additionalShippingFee;
+                                product.allocatedShippingFee = allocatedShippingFee;
+                                product.netProfit = product.totalRevenue - product.totalCost - value - allocatedShippingFee;
+                            } else {
+                                product.allocatedShippingFee = 0;
+                                product.netProfit = product.totalRevenue - product.totalCost - value;
+                            }
+                        } else {
+                            product.allocatedShippingFee = 0;
+                            product.netProfit = product.totalRevenue - product.totalCost - value;
+                        }
                         
                         // 重新渲染结果
                         renderResults();
@@ -6133,6 +6215,9 @@
                         updateDashboard();
                         
                         showToast('成功', '广告费已更新', 'success');
+                    } else {
+                        console.error(`商品未找到: ${productId}`);
+                        showToast('错误', '商品数据未找到', 'error');
                     }
                 });
             });
@@ -9122,9 +9207,9 @@
                             </div>
                             
                             <div class="mb-4">
-                                <label for="advertising-fee-filtered-${index}" class="block text-sm font-medium text-gray-700 mb-1">广告费 (元)</label>
+                                <label for="advertising-fee-filtered-${product.id}" class="block text-sm font-medium text-gray-700 mb-1">广告费 (元)</label>
                                 <div class="flex">
-                                    <input type="number" id="advertising-fee-filtered-${index}" 
+                                    <input type="number" id="advertising-fee-filtered-${product.id}" 
                                         class="input-field" step="0.01" min="0" 
                                         value="${product.advertisingFee}" 
                                         data-product-id="${product.id}">
@@ -9200,17 +9285,46 @@
                 });
             });
             
+            // 移除之前的事件监听器，避免重复绑定
+            document.querySelectorAll('.update-advertising-filtered').forEach(btn => {
+                btn.replaceWith(btn.cloneNode(true));
+            });
+            
             // 添加广告费更新事件（筛选模式）
             document.querySelectorAll('.update-advertising-filtered').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const productId = this.getAttribute('data-product-id');
-                    const input = document.querySelector(`#advertising-fee-filtered-${Array.from(document.querySelectorAll('.update-advertising-filtered')).indexOf(this)}`);
+                    const input = document.getElementById(`advertising-fee-filtered-${productId}`);
+                    
+                    if (!input) {
+                        console.error(`输入框未找到: advertising-fee-filtered-${productId}`);
+                        showToast('错误', '输入框未找到', 'error');
+                        return;
+                    }
+                    
                     const value = parseFloat(input.value) || 0;
                     
                     const product = productData.find(p => p.id === productId);
                     if (product) {
+                        // 更新广告费
                         product.advertisingFee = value;
-                        product.netProfit = product.totalRevenue - product.totalCost - value;
+                        
+                        // 重新计算净利润，考虑快递续重费
+                        const additionalShippingFee = parseFloat(document.getElementById('additional-shipping-fee').value) || 0;
+                        if (additionalShippingFee > 0) {
+                            const totalQuantity = productData.reduce((sum, p) => sum + p.totalQuantity, 0);
+                            if (totalQuantity > 0) {
+                                const allocatedShippingFee = (product.totalQuantity / totalQuantity) * additionalShippingFee;
+                                product.allocatedShippingFee = allocatedShippingFee;
+                                product.netProfit = product.totalRevenue - product.totalCost - value - allocatedShippingFee;
+                            } else {
+                                product.allocatedShippingFee = 0;
+                                product.netProfit = product.totalRevenue - product.totalCost - value;
+                            }
+                        } else {
+                            product.allocatedShippingFee = 0;
+                            product.netProfit = product.totalRevenue - product.totalCost - value;
+                        }
                         
                         // 重新应用筛选
                         applyCalculationFilters();
@@ -9219,6 +9333,9 @@
                         updateDashboard();
                         
                         showToast('成功', '广告费已更新', 'success');
+                    } else {
+                        console.error(`商品未找到: ${productId}`);
+                        showToast('错误', '商品数据未找到', 'error');
                     }
                 });
             });
@@ -10569,7 +10686,8 @@
         function openCategoryManagementModal(costType, typeName) {
             document.getElementById('category-modal-title').textContent = `${typeName}分类管理`;
             document.getElementById('add-category').setAttribute('data-cost-type', costType);
-            document.getElementById('new-category-name').value = '';
+            document.getElementById('cost-category-name').value = '';
+            document.getElementById('cost-category-color').value = '#3B82F6';
             
             renderCategoriesList(costType);
             document.getElementById('category-management-modal').classList.remove('hidden');
