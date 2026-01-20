@@ -1700,7 +1700,172 @@
             
             // 保存定价数据
             function savePricingData() {
-                localStorage.setItem('pricingData', JSON.stringify(pricingData));
+                try {
+                    const dataString = JSON.stringify(pricingData);
+                    localStorage.setItem('pricingData', dataString);
+                    console.log('=== 数据保存成功 ===');
+                    console.log('保存的数据大小:', dataString.length, '字符');
+                } catch (error) {
+                    console.error('保存数据失败:', error);
+                    showToast('错误', '保存数据失败', 'error');
+                }
+            }
+            
+            // 切换规格成本关联
+            function toggleCostLink(linkIndex, productIndex, specIndex) {
+                try {
+                    console.log('=== 切换规格成本关联 ===', { linkIndex, productIndex, specIndex });
+                    
+                    // 简化版本 - 移除过度的错误检查
+                    const link = pricingData.links[linkIndex];
+                    const product = link.products[productIndex];
+                    const spec = product.specs[specIndex];
+                    
+                    if (!spec.specCode) {
+                        showToast('提示', '请先输入规格编码', 'warning');
+                        return;
+                    }
+                    
+                    // 如果已关联，则取消关联
+                    if (spec.linkedCost) {
+                        spec.linkedCost = false;
+                        spec.cost = parseFloat(spec.cost) || 0; // 保留当前成本值
+                        spec.linkedCostCode = null; // 清除关联编码
+                        
+                        // 立即保存数据
+                        savePricingData();
+                        
+                        // 强制重新渲染显示链接
+                        setTimeout(() => {
+                            console.log('取消关联后重新渲染显示链接');
+                            renderDisplayLinks();
+                            showToast('成功', '已取消规格成本关联', 'success');
+                        }, 50);
+                        return;
+                    }
+                    
+                    // 查找对应的规格成本
+                    const skuCost = skuCosts[spec.specCode];
+                    if (!skuCost) {
+                        showToast('提示', `未找到规格编码"${spec.specCode}"的成本信息`, 'warning');
+                        return;
+                    }
+                    
+                    // 关联成本 - 使用总成本而不是手动成本
+                    const totalCost = parseFloat(skuCost.totalCost) || parseFloat(skuCost.cost) || 0;
+                    
+                    spec.linkedCost = true;
+                    spec.cost = totalCost;
+                    spec.linkedCostCode = spec.specCode;
+                    
+                    // 立即保存数据
+                    savePricingData();
+                    
+                    // 使用延迟执行确保DOM更新完成
+                    setTimeout(() => {
+                        console.log('关联成本后重新渲染显示链接');
+                        // 强制重新渲染显示链接
+                        renderDisplayLinks();
+                        
+                        // 确保UI完全更新后再显示成功消息
+                        setTimeout(() => {
+                            showToast('成功', '已关联规格成本', 'success');
+                        }, 50);
+                    }, 50);
+                    
+                } catch (error) {
+                    console.error('切换规格成本关联时出错:', error);
+                    console.error('错误详情:', error.stack);
+                    
+                    // 即使出错也尝试重新渲染以保持UI一致性
+                    try {
+                        console.log('出错后尝试重新渲染显示链接');
+                        renderDisplayLinks();
+                    } catch (renderError) {
+                        console.error('重新渲染时也出错:', renderError);
+                    }
+                    
+                    // 显示更友好的错误消息
+                    showToast('错误', '操作失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 移除成本关联
+            function removeCostLink(linkIndex, productIndex, specIndex) {
+                try {
+                    const link = pricingData.links[linkIndex];
+                    const product = link.products[productIndex];
+                    const spec = product.specs[specIndex];
+                    
+                    if (spec.linkedCost) {
+                        spec.linkedCost = false;
+                        spec.linkedCostCode = null;
+                        savePricingData();
+                    }
+                } catch (error) {
+                    console.error('移除成本关联时出错:', error);
+                }
+            }
+            
+            // 更新所有关联的成本
+            function updateLinkedCosts() {
+                try {
+                    console.log('=== 更新所有关联的成本 ===');
+                    
+                    let updatedCount = 0;
+                    
+                    // 检查定价数据是否存在
+                    if (!pricingData || !pricingData.links) {
+                        console.warn('定价数据未加载，跳过关联成本更新');
+                        return;
+                    }
+                    
+                    pricingData.links.forEach(link => {
+                        link.products.forEach(product => {
+                            product.specs.forEach(spec => {
+                                if (spec.linkedCost && spec.linkedCostCode) {
+                                    const skuCost = skuCosts[spec.linkedCostCode];
+                                    if (skuCost) {
+                                        const newCost = parseFloat(skuCost.totalCost) || parseFloat(skuCost.cost) || 0;
+                                        if (parseFloat(spec.cost) !== newCost) {
+                                            console.log(`更新规格 ${spec.specCode} 成本: ${spec.cost} -> ${newCost}`);
+                                            spec.cost = newCost;
+                                            updatedCount++;
+                                        }
+                                    } else {
+                                        console.warn(`规格编码 ${spec.linkedCostCode} 的成本信息不存在`);
+                                    }
+                                }
+                            });
+                        });
+                    });
+                    
+                    if (updatedCount > 0) {
+                        savePricingData();
+                        console.log('保存更新后的定价数据');
+                        
+                        // 使用正确的渲染函数
+                        setTimeout(() => {
+                            renderDisplayLinks();
+                            showToast('成功', `已更新${updatedCount}个关联成本`, 'success');
+                        }, 50);
+                    } else {
+                        console.log('没有需要更新的关联成本');
+                    }
+                    
+                    console.log(`更新完成，更新了${updatedCount}个成本`);
+                    
+                } catch (error) {
+                    console.error('更新关联成本时出错:', error);
+                    console.error('错误详情:', error.stack);
+                    showToast('错误', '更新失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 手动触发更新关联成本的函数
+            function manualUpdateLinkedCosts() {
+                console.log('=== 手动触发更新关联成本 ===');
+                updateLinkedCosts();
             }
             
             // 初始化定价工具
@@ -1708,6 +1873,12 @@
                 console.log('=== 初始化定价工具 ===');
                 loadPricingData();
                 updatePricingCategorySelects();
+                
+                // 检查并更新关联成本
+                if (typeof skuCosts !== 'undefined') {
+                    updateLinkedCosts();
+                }
+                
                 console.log('=== 定价工具初始化完成 ===');
             }
             
@@ -1891,21 +2062,48 @@
                                     
                                     const pricingPrice = (sellingPrice / safeActivityDiscount) + couponAmount;
                                     const profit = sellingPrice - cost;
-                                    const profitRate = cost > 0 ? (profit / cost * 100) : 0;
+                                    const grossProfitRate = sellingPrice > 0 ? (profit / sellingPrice * 100) : 0;
                                     
-                                    console.log(`Results - pricingPrice: ${pricingPrice}, profit: ${profit}, profitRate: ${profitRate}`);
+                                    console.log(`Results - pricingPrice: ${pricingPrice}, profit: ${profit}, grossProfitRate: ${grossProfitRate}`);
                                     
                                     return `
                                         <tr>
                                             <td class="px-3 py-2 whitespace-nowrap">
+                                                <div class="relative">
+                                                    <input type="text" 
+                                                           class="input-field text-sm py-1 px-2 sku-input" 
+                                                           value="${spec.skuCode || ''}" 
+                                                           maxlength="32"
+                                                           placeholder="请输入SKU" 
+                                                           style="min-width: 120px;"
+                                                           oninput="formatSKU(this)"
+                                                           onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'skuCode', this.value)">
+                                                    ${spec.skuCode ? `<button type="button" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600" onclick="clearSKU(this, ${linkIndex}, ${productIndex}, ${specIndex})">
+                                                        <i class="fa fa-times-circle"></i>
+                                                    </button>` : ''}
+                                                </div>
+                                            </td>
+                                            <td class="px-3 py-2 whitespace-nowrap">
                                                 <input type="text" class="input-field text-sm py-1 px-2" value="${spec.specCode || ''}" 
-                                                       onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'specCode', this.value)"
+                                                       onchange="updateSpecFieldWithUnlink(${linkIndex}, ${productIndex}, ${specIndex}, 'specCode', this.value)"
                                                        placeholder="请输入规格编码" style="min-width: 180px;">
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-right">
-                                                <input type="number" class="input-field text-sm py-1 px-2 text-right" value="${cost}" 
-                                                       step="0.01" min="0" 
-                                                       onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'cost', this.value)" style="max-width: 90px;">
+                                                <div class="flex items-center justify-end space-x-1">
+                                                    <input type="number" class="input-field text-sm py-1 px-2 text-right" value="${cost}" 
+                                                           step="0.01" min="0" 
+                                                           onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'cost', this.value); removeCostLink(${linkIndex}, ${productIndex}, ${specIndex})" 
+                                                           style="max-width: 90px;"
+                                                           data-linked="${spec.linkedCost ? 'true' : 'false'}"
+                                                           ${spec.linkedCost ? 'readonly' : ''}>
+                                                    <button type="button" 
+                                                            class="btn btn-secondary text-xs py-0 px-0" 
+                                                            onclick="toggleCostLink(${linkIndex}, ${productIndex}, ${specIndex})"
+                                                            title="${spec.linkedCost ? '取消关联规格成本' : '关联规格成本'}"
+                                                            style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                                        <i class="fa fa-link" style="font-size: 14px; color: ${spec.linkedCost ? '#10b981' : ''};"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-right">
                                                 <input type="number" class="input-field text-sm py-1 px-2 text-right" 
@@ -1934,20 +2132,29 @@
                                             <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${profit >= 0 ? 'text-success' : 'text-danger'}">
                                                 ${profit.toFixed(2)}
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${profitRate >= 0 ? 'text-success' : 'text-danger'}">
-                                                ${profitRate.toFixed(2)}%
+                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${grossProfitRate >= 0 ? 'text-success' : 'text-danger'}">
+                                                ${grossProfitRate.toFixed(2)}%
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${profitRate > 0 ? 'text-primary' : 'text-danger'}">
-                                                ${profitRate > 0 ? calculateBreakEven(parseFloat(spec.sellingPrice || 0) || 0, parseFloat(spec.cost || 0) || 0, parseFloat(spec.signRate || 100)).toFixed(2) : '-'}
+                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${grossProfitRate > 0 ? 'text-primary' : 'text-danger'}">
+                                                ${grossProfitRate > 0 ? calculateBreakEven(parseFloat(spec.sellingPrice || 0) || 0, parseFloat(spec.cost || 0) || 0, parseFloat(spec.signRate || 100)).toFixed(2) : '-'}
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-bold ${pricingPrice >= 0 ? 'text-primary' : 'text-danger'} bg-primary/5 rounded-lg">
                                                 ¥${pricingPrice.toFixed(2)}
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                                <button class="btn btn-danger text-xs py-0" 
+                                            <td class="py-2 whitespace-nowrap text-center" style="padding: 2px 0 2px 8px; min-width: 40px;">
+                                                <button class="btn btn-secondary text-xs py-0 px-0" 
+                                                        onclick="editSpecNote(${linkIndex}, ${productIndex}, ${specIndex})"
+                                                        title="编辑备注"
+                                                        style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                                    <i class="fa fa-sticky-note" style="font-size: 14px; color: ${spec.note ? '#10b981' : ''};"></i>
+                                                </button>
+                                            </td>
+                                            <td class="py-2 whitespace-nowrap text-right" style="padding: 2px 0 2px 4px; min-width: 40px;">
+                                                <button class="btn btn-danger text-xs py-0 px-0" 
                                                         onclick="removeSpec(${linkIndex}, ${productIndex}, ${specIndex})"
-                                                        title="删除规格">
-                                                    <i class="fa fa-trash"></i>
+                                                        title="删除规格"
+                                                        style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                                                    <i class="fa fa-trash" style="font-size: 14px;"></i>
                                                 </button>
                                             </td>
                                         </tr>
@@ -1956,7 +2163,7 @@
                                     console.error(`Error calculating for spec ${specIndex}:`, calcError);
                                     return `
                                         <tr class="bg-red-50">
-                                            <td colspan="11" class="px-4 py-2 text-center text-danger">
+                                            <td colspan="12" class="px-4 py-2 text-center text-danger">
                                                 计算错误: ${calcError.message}
                                             </td>
                                         </tr>
@@ -1964,7 +2171,7 @@
                                 }
                             }).join('') : `
                                 <tr>
-                                    <td colspan="10" class="px-4 py-4 text-center text-gray-500">暂无规格，请添加</td>
+                                    <td colspan="12" class="px-4 py-4 text-center text-gray-500">暂无规格，请添加</td>
                                 </tr>
                             `;
                             
@@ -2063,21 +2270,22 @@
                                             <table class="min-w-full divide-y divide-gray-200">
                                                 <thead>
                                                     <tr>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">SKU</th>
                                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">规格编码</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">规格成本(元)</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">优惠券(元)</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">活动折扣</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">规格成本(元)</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">优惠券(元)</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">活动折扣</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">
                                                             <div class="tooltip-container">
                                                                 签收率(%)
                                                                 <div class="tooltip-content">当签收率填写为90%则退货率为10%</div>
                                                                 <div class="tooltip-arrow"></div>
                                                             </div>
                                                         </th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">售卖价(元)</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">利润(元)</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">利润率</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-primary uppercase tracking-wider whitespace-nowrap min-w-[80px]">
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">售卖价(元)</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">利润(元)</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[80px]">毛利率</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-primary uppercase tracking-wider whitespace-nowrap min-w-[80px]">
                                                             <div class="tooltip-container">
                                                                 保本投产
                                                                 <div class="tooltip-content">计算公式：售卖价/（售卖价-规格成本）/签收率（同退货率）</div>
@@ -2085,7 +2293,8 @@
                                                             </div>
                                                         </th>
                                                         <th class="px-3 py-2 text-right text-xs font-medium text-primary uppercase tracking-wider bg-primary/5 whitespace-nowrap min-w-[100px]">定价价格(元)</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[60px]">操作</th>
+                                                        <th class="py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="padding: 2px 0 2px 8px; min-width: 40px;">备注</th>
+                                                        <th class="py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="padding: 2px 0 2px 4px; min-width: 40px;">操作</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody class="bg-white divide-y divide-gray-200">
@@ -2141,9 +2350,30 @@
                 return sellingPrice - cost;
             }
             
-            // 计算利润率
+            // 计算毛利率
             function calculateProfitRate(profit, cost) {
                 return cost > 0 ? (profit / cost * 100) : 0;
+            }
+            
+            // 编辑规格备注
+            function editSpecNote(linkIndex, productIndex, specIndex) {
+                try {
+                    const link = pricingData.links[linkIndex];
+                    const product = link.products[productIndex];
+                    const spec = product.specifications[specIndex];
+                    
+                    const currentNote = spec.note || '';
+                    const newNote = prompt('请输入备注内容:', currentNote);
+                    
+                    if (newNote !== null) {
+                        spec.note = newNote.trim();
+                        savePricingData();
+                        renderPricingTable();
+                    }
+                } catch (error) {
+                    console.error('编辑备注时出错:', error);
+                    showToast('编辑备注失败', 'error');
+                }
             }
             
             // 计算保本投产（新公式）
@@ -2152,11 +2382,12 @@
                     // 签收率转换为小数（100 = 1，85 = 0.85）
                     const signRateDecimal = parseFloat(signRate) / 100;
                     
-                    // 新公式：售卖价 / (售卖价 - 规格成本) / 签收率
+                    // 新公式：1 / (毛利率 * 签收率)，其中毛利率 = 利润 / 售卖价
                     const profit = sellingPrice - cost;
-                    if (profit <= 0) return 0;
+                    const grossProfitRateDecimal = sellingPrice > 0 ? (profit / sellingPrice) : 0;
+                    if (grossProfitRateDecimal <= 0) return 0;
                     
-                    const breakEven = (sellingPrice / profit) / signRateDecimal;
+                    const breakEven = 1 / (grossProfitRateDecimal * signRateDecimal);
                     
                     return breakEven;
                 } catch (error) {
@@ -2180,10 +2411,10 @@
                             const cost = parseFloat(spec.cost || 0) || 0;
                             const sellingPrice = parseFloat(spec.sellingPrice || 0) || 0;
                             const profit = sellingPrice - cost;
-                            const profitRate = cost > 0 ? (profit / cost * 100) : 0;
+                            const grossProfitRate = sellingPrice > 0 ? (profit / sellingPrice * 100) : 0;
                             const signRate = parseFloat(spec.signRate || 100) || 100;
                             
-                            if (profitRate > 0) {
+                            if (grossProfitRate > 0) {
                                 const breakEven = calculateBreakEven(sellingPrice, cost, signRate);
                                 totalBreakEven += breakEven;
                                 validCount++;
@@ -2361,11 +2592,18 @@
                         product.specs.forEach((spec, specIndex) => {
                             const specHtml = `
                                 <div class="border border-gray-200 rounded-md p-3">
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">规格编码</label>
-                                            <input type="text" class="input-field w-full text-sm" value="${spec.specCode || ''}" 
-                                                onchange="this.dataset.value = this.value">
+                                    <div class="grid grid-cols-1 gap-3 mb-2">
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">SKU</label>
+                                                <input type="text" class="input-field w-full text-sm" value="${spec.skuCode || ''}" 
+                                                    maxlength="32" placeholder="请输入SKU">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">规格编码</label>
+                                                <input type="text" class="input-field w-full text-sm" value="${spec.specCode || ''}" 
+                                                    onchange="this.dataset.value = this.value">
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -2429,14 +2667,31 @@
             // 保存编辑的商品
             function saveEditProduct() {
                 try {
+                    console.log('=== 开始保存编辑的商品 ===');
+                    
                     const linkIndex = parseInt(document.getElementById('edit-product-link-index').value);
                     const productIndex = parseInt(document.getElementById('edit-product-index').value);
                     const productId = document.getElementById('edit-product-id').value.trim();
                     const category = document.getElementById('edit-product-category').value;
                     const note = document.getElementById('edit-product-note').value.trim();
                     
+                    console.log('链接索引:', linkIndex, '商品索引:', productIndex);
+                    
                     if (!productId) {
                         showToast('错误', '商品ID不能为空', 'error');
+                        return;
+                    }
+                    
+                    // 验证数据结构
+                    if (!pricingData.links || !pricingData.links[linkIndex]) {
+                        console.error('链接数据不存在');
+                        showToast('错误', '数据保存失败', 'error');
+                        return;
+                    }
+                    
+                    if (!pricingData.links[linkIndex].products || !pricingData.links[linkIndex].products[productIndex]) {
+                        console.error('商品数据不存在');
+                        showToast('错误', '数据保存失败', 'error');
                         return;
                     }
                     
@@ -2446,57 +2701,44 @@
                     product.category = category;
                     product.note = note;
                     
-
+                    // 更新规格信息
+                    const specContainers = document.querySelectorAll('#edit-product-specs > div');
+                    specContainers.forEach((container, specIndex) => {
+                        if (product.specs && product.specs[specIndex]) {
+                            const inputs = container.querySelectorAll('input');
+                            if (inputs.length >= 6) {
+                                // SKU (第一个输入框)
+                                product.specs[specIndex].skuCode = (inputs[0].dataset.value || inputs[0].value).trim();
+                                // 规格编码 (第二个输入框)
+                                product.specs[specIndex].specCode = (inputs[1].dataset.value || inputs[1].value).trim();
+                                // 成本 (第三个输入框)
+                                product.specs[specIndex].cost = parseFloat(inputs[2].dataset.value || inputs[2].value) || 0;
+                                // 优惠券 (第四个输入框)
+                                product.specs[specIndex].couponAmount = parseFloat(inputs[3].dataset.value || inputs[3].value) || 0;
+                                // 活动折扣 (第五个输入框)
+                                product.specs[specIndex].activityDiscount = parseFloat(inputs[4].dataset.value || inputs[4].value) || 0;
+                                // 售卖价 (第六个输入框)
+                                product.specs[specIndex].sellingPrice = parseFloat(inputs[5].dataset.value || inputs[5].value) || 0;
+                            }
+                        }
+                    });
                     
+                    console.log('基本信息和规格信息已更新');
+                    
+                    // 保存数据到localStorage
                     savePricingData();
+                    
+                    // 重新渲染界面
                     renderLinks();
                     renderDisplayLinks();
+                    
+                    console.log('数据已保存并重新渲染');
                     
                     // 关闭模态框
                     closeEditProductModal();
                     
                     showToast('成功', '商品更新成功', 'success');
-                    
-                } catch (error) {
-                    console.error('Error saving edited product:', error);
-                    showToast('错误', '保存失败: ' + error.message, 'error');
-                }
-            }
-            
-
-            
-
-            
-            // 保存编辑的商品
-            function saveEditProduct() {
-                try {
-                    const linkIndex = parseInt(document.getElementById('edit-product-link-index').value);
-                    const productIndex = parseInt(document.getElementById('edit-product-index').value);
-                    const productId = document.getElementById('edit-product-id').value.trim();
-                    const category = document.getElementById('edit-product-category').value;
-                    const note = document.getElementById('edit-product-note').value.trim();
-                    
-                    if (!productId) {
-                        showToast('错误', '商品ID不能为空', 'error');
-                        return;
-                    }
-                    
-                    // 更新商品基本信息
-                    const product = pricingData.links[linkIndex].products[productIndex];
-                    product.productId = productId;
-                    product.category = category;
-                    product.note = note;
-                    
-
-                    
-                    savePricingData();
-                    renderLinks();
-                    renderDisplayLinks();
-                    
-                    // 关闭模态框
-                    closeEditProductModal();
-                    
-                    showToast('成功', '商品更新成功', 'success');
+                    console.log('=== 保存编辑的商品完成 ===');
                     
                 } catch (error) {
                     console.error('Error saving edited product:', error);
@@ -2890,6 +3132,7 @@
                     
                     // 创建新规格
                     const newSpec = {
+                        skuCode: '',
                         specCode: '',
                         cost: 0,
                         couponAmount: undefined,
@@ -3054,10 +3297,185 @@
                 }
             }
             
+            // 格式化SKU输入
+            function formatSKU(input) {
+                // 移除非字母数字和下划线字符
+                let value = input.value.replace(/[^a-zA-Z0-9_]/g, '');
+                // 限制长度为32个字符
+                value = value.substring(0, 32);
+                input.value = value;
+                // 同步到dataset
+                input.dataset.value = value;
+            }
+            
+            // 清除SKU输入
+            function clearSKU(button, linkIndex, productIndex, specIndex) {
+                const input = button.previousElementSibling;
+                input.value = '';
+                input.dataset.value = '';
+                // 更新数据
+                if (pricingData.links[linkIndex] && 
+                    pricingData.links[linkIndex].products[productIndex] && 
+                    pricingData.links[linkIndex].products[productIndex].specs[specIndex]) {
+                    pricingData.links[linkIndex].products[productIndex].specs[specIndex].skuCode = '';
+                    savePricingData();
+                    renderDisplayLinks();
+                }
+                button.style.display = 'none';
+            }
+            
+            // 编辑规格备注
+            function editSpecNote(linkIndex, productIndex, specIndex) {
+                try {
+                    console.log('=== 打开编辑规格备注模态框 ===');
+                    console.log('链接索引:', linkIndex, '商品索引:', productIndex, '规格索引:', specIndex);
+                    
+                    // 验证数据结构
+                    if (!pricingData.links[linkIndex] || 
+                        !pricingData.links[linkIndex].products[productIndex] || 
+                        !pricingData.links[linkIndex].products[productIndex].specs[specIndex]) {
+                        console.error('数据结构不存在');
+                        showToast('错误', '数据加载失败', 'error');
+                        return;
+                    }
+                    
+                    const spec = pricingData.links[linkIndex].products[productIndex].specs[specIndex];
+                    const product = pricingData.links[linkIndex].products[productIndex];
+                    
+                    // 填充规格信息
+                    const infoDiv = document.getElementById('spec-note-info');
+                    const specInfo = `
+                        商品ID: ${product.productId} | 
+                        SKU: ${spec.skuCode || '未设置'} | 
+                        规格编码: ${spec.specCode || '未设置'}
+                    `;
+                    infoDiv.innerHTML = specInfo;
+                    
+                    // 填充现有备注
+                    const noteTextarea = document.getElementById('spec-note-content');
+                    noteTextarea.value = spec.note || '';
+                    
+                    // 存储索引信息
+                    document.getElementById('edit-spec-note-modal').dataset.linkIndex = linkIndex;
+                    document.getElementById('edit-spec-note-modal').dataset.productIndex = productIndex;
+                    document.getElementById('edit-spec-note-modal').dataset.specIndex = specIndex;
+                    
+                    // 显示模态框
+                    const modal = document.getElementById('edit-spec-note-modal');
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    
+                    // 聚焦到备注输入框
+                    setTimeout(() => {
+                        noteTextarea.focus();
+                    }, 100);
+                    
+                    console.log('=== 编辑规格备注模态框打开完成 ===');
+                    
+                } catch (error) {
+                    console.error('Error opening edit spec note modal:', error);
+                    showToast('错误', '打开编辑窗口失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 关闭规格备注模态框
+            function closeSpecNoteModal() {
+                const modal = document.getElementById('edit-spec-note-modal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                
+                // 重置表单
+                document.getElementById('spec-note-content').value = '';
+                document.getElementById('spec-note-info').innerHTML = '';
+            }
+            
+            // 保存规格备注
+            function saveSpecNote() {
+                try {
+                    console.log('=== 开始保存规格备注 ===');
+                    
+                    const modal = document.getElementById('edit-spec-note-modal');
+                    const linkIndex = parseInt(modal.dataset.linkIndex);
+                    const productIndex = parseInt(modal.dataset.productIndex);
+                    const specIndex = parseInt(modal.dataset.specIndex);
+                    const noteContent = document.getElementById('spec-note-content').value.trim();
+                    
+                    console.log('链接索引:', linkIndex, '商品索引:', productIndex, '规格索引:', specIndex);
+                    
+                    // 验证数据结构
+                    if (!pricingData.links[linkIndex] || 
+                        !pricingData.links[linkIndex].products[productIndex] || 
+                        !pricingData.links[linkIndex].products[productIndex].specs[specIndex]) {
+                        console.error('数据结构不存在');
+                        showToast('错误', '数据保存失败', 'error');
+                        return;
+                    }
+                    
+                    // 更新备注
+                    pricingData.links[linkIndex].products[productIndex].specs[specIndex].note = noteContent;
+                    
+                    console.log('备注已更新:', noteContent);
+                    
+                    // 保存数据
+                    savePricingData();
+                    
+                    // 重新渲染界面
+                    renderDisplayLinks();
+                    
+                    console.log('数据已保存并重新渲染');
+                    
+                    // 关闭模态框
+                    closeSpecNoteModal();
+                    
+                    showToast('成功', '备注保存成功', 'success');
+                    console.log('=== 保存规格备注完成 ===');
+                    
+                } catch (error) {
+                    console.error('Error saving spec note:', error);
+                    showToast('错误', '保存失败: ' + error.message, 'error');
+                }
+            }
+            
             // 更新规格字段
             function updateSpecField(linkIndex, productIndex, specIndex, field, value) {
+                // 确保数据结构存在
+                if (!pricingData.links[linkIndex] || 
+                    !pricingData.links[linkIndex].products[productIndex] || 
+                    !pricingData.links[linkIndex].products[productIndex].specs[specIndex]) {
+                    console.error('数据结构不存在:', linkIndex, productIndex, specIndex);
+                    return;
+                }
+                
                 const numValue = ['cost', 'couponAmount', 'activityDiscount', 'sellingPrice'].includes(field) ? (parseFloat(value) || 0) : value;
                 pricingData.links[linkIndex].products[productIndex].specs[specIndex][field] = numValue;
+                savePricingData();
+                renderDisplayLinks();
+            }
+            
+            // 更新规格字段并在修改规格编码时自动取消关联
+            function updateSpecFieldWithUnlink(linkIndex, productIndex, specIndex, field, value) {
+                // 确保数据结构存在
+                if (!pricingData.links[linkIndex] || 
+                    !pricingData.links[linkIndex].products[productIndex] || 
+                    !pricingData.links[linkIndex].products[productIndex].specs[specIndex]) {
+                    console.error('数据结构不存在:', linkIndex, productIndex, specIndex);
+                    return;
+                }
+                
+                const spec = pricingData.links[linkIndex].products[productIndex].specs[specIndex];
+                const oldSpecCode = spec.specCode;
+                const newSpecCode = value.trim();
+                
+                // 如果是修改规格编码，且之前有关联，则自动取消关联
+                if (field === 'specCode' && spec.linkedCost && (oldSpecCode !== newSpecCode || !newSpecCode)) {
+                    // 取消关联
+                    spec.linkedCost = false;
+                    // 显示提示
+                    showToast('提示', '规格编码已修改，已自动取消成本关联', 'info');
+                }
+                
+                const numValue = ['cost', 'couponAmount', 'activityDiscount', 'sellingPrice'].includes(field) ? (parseFloat(value) || 0) : value;
+                spec[field] = numValue;
                 savePricingData();
                 renderDisplayLinks();
             }
@@ -3914,7 +4332,8 @@
                 </div>
                 
 
-                
+
+
                 <!-- 编辑商品模态框 -->
                 
             </div>
@@ -4073,7 +4492,7 @@
                             <option value="profit-asc">净利润从低到高</option>
                             <option value="quantity-desc">销量从高到低</option>
                             <option value="revenue-desc">收入从高到低</option>
-                            <option value="profit-rate-desc">利润率从高到低</option>
+                            <option value="profit-rate-desc">毛利率从高到低</option>
                         </select>
                         <select id="ranking-limit" class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
                             <option value="10">显示前10名</option>
@@ -4096,7 +4515,7 @@
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">销量</th>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">收入 (元)</th>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">净利润 (元)</th>
-                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">利润率</th>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">毛利率</th>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                             </tr>
                         </thead>
@@ -4113,6 +4532,32 @@
             </div>
         </div>
     </main>
+
+    <!-- Edit Spec Note Modal -->
+    <div id="edit-spec-note-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">编辑规格备注</h3>
+                <button type="button" class="text-gray-400 hover:text-gray-500" onclick="closeSpecNoteModal()">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">规格信息</label>
+                    <div id="spec-note-info" class="text-sm text-gray-600"></div>
+                </div>
+                <div class="mb-4">
+                    <label for="spec-note-content" class="block text-sm font-medium text-gray-700 mb-1">备注内容</label>
+                    <textarea id="spec-note-content" rows="4" class="input-field w-full text-sm" placeholder="请输入备注内容"></textarea>
+                </div>
+            </div>
+            <div class="border-t border-gray-200 px-6 py-4 flex justify-end space-x-3">
+                <button type="button" class="btn btn-secondary" onclick="closeSpecNoteModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveSpecNote()">保存</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modals -->
     <!-- Add SKU Modal -->
@@ -6083,7 +6528,7 @@
                                     <p class="font-medium ${profitClass}">¥${avgProfitPerUnit.toFixed(2)}</p>
                                 </div>
                                 <div>
-                                    <p class="text-sm text-gray-500">利润率</p>
+                                    <p class="text-sm text-gray-500">毛利率</p>
                                     <p class="font-medium ${profitClass}">${profitPercentage}%</p>
                                 </div>
                             </div>
@@ -8923,7 +9368,7 @@
             let html = '';
             sortedProducts.forEach((product, index) => {
                 const shopName = getShopNameByProductId(product.id);
-                const profitRate = product.totalRevenue > 0 
+                const grossProfitRate = product.totalRevenue > 0 
                     ? ((product.netProfit / product.totalRevenue) * 100).toFixed(2) 
                     : '0.00';
                 
@@ -8961,7 +9406,7 @@
                             ¥${product.netProfit.toFixed(2)}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm ${product.netProfit >= 0 ? 'text-success' : 'text-danger'}">
-                            ${profitRate}%
+                            ${grossProfitRate}%
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button class="text-primary hover:text-primary-dark view-details" data-product-id="${product.id}">
@@ -9201,7 +9646,7 @@
                                     <p class="font-medium ${profitClass}">¥${avgProfitPerUnit.toFixed(2)}</p>
                                 </div>
                                 <div>
-                                    <p class="text-sm text-gray-500">利润率</p>
+                                    <p class="text-sm text-gray-500">毛利率</p>
                                     <p class="font-medium ${profitClass}">${profitPercentage}%</p>
                                 </div>
                             </div>
@@ -9453,7 +9898,7 @@
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-gray-600 flex items-center">
                                     <i class="fa fa-percent mr-1 text-gray-400"></i>
-                                    利润率
+                                    毛利率
                                 </span>
                                 <span class="text-base font-semibold ${shop.profitMargin >= 0 ? 'text-success' : 'text-danger'}">${shop.profitMargin.toFixed(2)}%</span>
                             </div>
@@ -12182,6 +12627,17 @@
             localStorage.setItem('savedProductData', JSON.stringify(savedProductData));
             
             console.log('Data saved successfully with saved data flag');
+            
+            // 自动更新关联的成本数据
+            // 检查是否在规格成本管理页面或有规格成本数据变化
+            const currentTab = document.querySelector('.tab-active');
+            if (currentTab && currentTab.getAttribute('data-tab') === 'sku-costs') {
+                console.log('检测到在规格成本管理页面保存数据，自动更新关联成本');
+                // 使用setTimeout确保数据完全保存后再更新
+                setTimeout(() => {
+                    updateLinkedCosts();
+                }, 100);
+            }
         }
         
         // 从本地存储加载数据
@@ -12574,6 +13030,41 @@
     <script>
         // 导出成本到Excel
 
+    </script>
+
+    <script>
+        // 格式化SKU（仅保留字母、数字、下划线，限制32位）
+        function formatSKU(input) {
+            // 过滤特殊字符（电商SKU通用规范）
+            input.value = input.value.replace(/[^a-zA-Z0-9_]/g, '');
+            // 限制最大长度32位
+            if (input.value.length > 32) {
+                input.value = input.value.substring(0, 32);
+            }
+            // 实时显示/隐藏清空按钮
+            const clearBtn = input.parentElement.querySelector('button');
+            if (clearBtn) {
+                clearBtn.style.display = input.value ? 'block' : 'none';
+            }
+        }
+
+        // 清空SKU输入框
+        function clearSKU(btn, linkIndex, productIndex, specIndex) {
+            const input = btn.parentElement.querySelector('.sku-input');
+            input.value = '';
+            // 更新数据模型
+            updateSpecField(linkIndex, productIndex, specIndex, 'skuCode', '');
+            // 隐藏清空按钮
+            btn.style.display = 'none';
+        }
+
+        // 全局监听SKU输入框（仅用于主列表中的SKU输入框，避免影响编辑模态框）
+        document.addEventListener('input', function(e) {
+            // 检查是否为主列表中的SKU输入框（通过检查父元素结构）
+            if (e.target.classList.contains('sku-input') && e.target.closest('#display-links-container')) {
+                formatSKU(e.target); // 实时格式化
+            }
+        });
     </script>
 
 </body></html>
