@@ -205,14 +205,24 @@
                 @apply relative inline-block cursor-help;
             }
             .tooltip-content {
-                @apply absolute z-50 top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg shadow-lg whitespace-nowrap opacity-0 invisible transition-all duration-200;
+                @apply absolute z-50 px-4 py-3 text-sm text-white bg-gray-800 rounded-lg shadow-lg opacity-0 invisible transition-all duration-200;
+                max-width: 250px;
+                word-wrap: break-word;
+                white-space: normal;
+                z-index: 9999 !important;
+                position: fixed !important;
+                pointer-events: none;
+                font-size: 13px;
+                line-height: 1.4;
+                transform: translateY(15px);
             }
             .tooltip-container:hover .tooltip-content {
                 @apply opacity-100 visible;
-                transform: translateX(-50%) translateY(2px);
             }
             .tooltip-arrow {
-                @apply absolute top-full left-1/2 transform -translate-x-1/2 -translate-y-1/2 border-4 border-transparent border-b-gray-800 opacity-0 invisible transition-all duration-200;
+                @apply absolute border-4 border-transparent border-t-gray-800 opacity-0 invisible transition-all duration-200;
+                top: -8px;
+                left: 10px;
             }
             .tooltip-container:hover .tooltip-arrow {
                 @apply opacity-100 visible;
@@ -1435,6 +1445,7 @@
                             if (isManualClick) {
                                 console.log('User manually clicked product details tab, resetting filter');
                                 currentViewingLinkIndex = -1;
+                                currentViewingProductIndex = -1;
                             } else {
                                 console.log('Programmatic tab switch, preserving filter:', currentViewingLinkIndex);
                             }
@@ -1943,7 +1954,7 @@
                                 </div>
                                 <div class="space-y-3">
                                     ${link.products && link.products.length > 0 ? link.products.map((product, productIndex) => `
-                                        <div class="border border-gray-200 rounded-md p-3 product-card-hover">
+                                        <div class="border border-gray-200 rounded-md p-3 product-card-hover cursor-pointer" onclick="handleProductCardClick(event, ${index}, ${productIndex})">
                                             <div class="flex justify-between items-center mb-2 border-b border-primary/20 pb-2">
                                                 <div class="flex items-center">
                                                     <span class="font-medium">商品ID: ${product.productId}</span>
@@ -2022,8 +2033,8 @@
                         console.log('Filtering to show only link index:', currentViewingLinkIndex);
                         linksToDisplay = [pricingData.links[currentViewingLinkIndex]];
                     } else {
-                        console.log('No specific link selected, showing empty state');
-                        // 默认不显示任何链接
+                        console.log('No specific link selected, showing all links');
+                        linksToDisplay = pricingData.links;
                     }
                     
                     if (linksToDisplay.length === 0) {
@@ -2069,7 +2080,11 @@
                                     return `
                                         <tr>
                                             <td class="px-3 py-2 whitespace-nowrap">
-                                                <div class="relative">
+                                                <div class="relative flex items-center space-x-2">
+                                                    <div class="tooltip-container">
+                                                        <div class="w-3 h-3 rounded-full" style="background-color: ${spec.color || '#9ca3af'};"></div>
+                                                        ${spec.note ? `<div class="tooltip-content max-w-xs">${spec.note.replace(/\n/g, '<br>')}</div><div class="tooltip-arrow"></div>` : ''}
+                                                    </div>
                                                     <input type="text" 
                                                            class="input-field text-sm py-1 px-2 sku-input" 
                                                            value="${spec.skuCode || ''}" 
@@ -2146,7 +2161,7 @@
                                                         onclick="editSpecNote(${linkIndex}, ${productIndex}, ${specIndex})"
                                                         title="编辑备注"
                                                         style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                                                    <i class="fa fa-sticky-note" style="font-size: 14px; color: ${spec.note ? '#10b981' : ''};"></i>
+                                                    <i class="fa fa-sticky-note" style="font-size: 14px; color: ${spec.note ? '#000000' : '#9ca3af'};"></i>
                                                 </button>
                                             </td>
                                             <td class="py-2 whitespace-nowrap text-right" style="padding: 2px 0 2px 4px; min-width: 40px;">
@@ -2666,6 +2681,13 @@
             
             // 保存编辑的商品
             function saveEditProduct() {
+                // 保存所有卡片的展开状态
+                const expandedStates = {};
+                document.querySelectorAll('.link-header').forEach(header => {
+                    const index = header.getAttribute('data-index');
+                    const isExpanded = !header.nextElementSibling.classList.contains('hidden');
+                    expandedStates[index] = isExpanded;
+                });
                 try {
                     console.log('=== 开始保存编辑的商品 ===');
                     
@@ -2730,6 +2752,23 @@
                     
                     // 重新渲染界面
                     renderLinks();
+                    
+                    // 恢复之前的展开状态
+                    setTimeout(() => {
+                        document.querySelectorAll('.link-header').forEach(header => {
+                            const index = header.getAttribute('data-index');
+                            const content = header.nextElementSibling;
+                            const icon = header.querySelector('.link-toggle-icon');
+                            
+                            if (expandedStates[index]) {
+                                content.classList.remove('hidden');
+                                if (icon) {
+                                    icon.style.transform = 'rotate(180deg)';
+                                }
+                            }
+                        });
+                    }, 50);
+                    
                     renderDisplayLinks();
                     
                     console.log('数据已保存并重新渲染');
@@ -2796,8 +2835,9 @@
                 }, 1000);
             }
             
-            // 当前查看的链接索引
+            // 当前查看的链接索引和商品索引
             let currentViewingLinkIndex = -1;
+            let currentViewingProductIndex = -1;
             
             // 查看链接详情
             function viewLinkDetails(index) {
@@ -2840,6 +2880,61 @@
                         productDetailsTab.dispatchEvent(clickEvent);
                     }
                 }, 200);
+            }
+            
+            // 处理商品卡片点击事件
+            function handleProductCardClick(event, linkIndex, productIndex) {
+                // 检查点击的目标是否是按钮或按钮内的元素
+                let target = event.target;
+                while (target && target !== event.currentTarget) {
+                    if (target.tagName === 'BUTTON' || target.closest('button')) {
+                        // 如果点击的是按钮，不执行跳转
+                        return;
+                    }
+                    target = target.parentElement;
+                }
+                
+                // 如果点击的不是按钮，执行跳转
+                viewProductCardDetails(linkIndex, productIndex);
+            }
+            
+            // 查看商品详情（从商品卡片点击）
+            function viewProductCardDetails(linkIndex, productIndex) {
+                // 记录当前查看的链接索引和商品索引
+                currentViewingLinkIndex = linkIndex;
+                currentViewingProductIndex = productIndex;
+                console.log('查看商品详情，链接索引:', linkIndex, '商品索引:', productIndex);
+                
+                // 直接切换到商品详细标签（link-display）
+                const linkDisplayTab = document.querySelector('[data-pricing-tab="link-display"]');
+                if (linkDisplayTab) {
+                    // 模拟点击事件
+                    const clickEvent = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    linkDisplayTab.dispatchEvent(clickEvent);
+                    
+                    // 等待标签切换完成后，直接滚动到对应的商品
+                    setTimeout(() => {
+                        const linkElement = document.querySelector(`[data-link-index="${linkIndex}"]`);
+                        if (linkElement) {
+                            const productCards = linkElement.querySelectorAll('.product-card-hover');
+                            if (productCards.length > productIndex) {
+                                const productCard = productCards[productIndex];
+                                if (productCard) {
+                                    // 直接滚动到商品卡片，使用block: 'center'确保卡片在视口中居中
+                                    productCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    // 高亮显示商品卡片
+                                    productCard.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+                                    setTimeout(() => {
+                                        productCard.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+                                    }, 2000);
+                                }
+                            }
+                        }
+                    }, 300); // 增加延迟时间，确保DOM完全渲染
+                }
             }
             
             // 添加商品到链接
@@ -3072,9 +3167,34 @@
                             '确认删除商品',
                             `确定要删除"${productName}"吗？此操作无法撤销。`,
                             function() {
+                                // 保存所有卡片的展开状态
+                                const expandedStates = {};
+                                document.querySelectorAll('.link-header').forEach(header => {
+                                    const index = header.getAttribute('data-index');
+                                    const isExpanded = !header.nextElementSibling.classList.contains('hidden');
+                                    expandedStates[index] = isExpanded;
+                                });
+                                
                                 pricingData.links[linkIndex].products.splice(productIndex, 1);
                                 savePricingData();
                                 renderLinks();
+                                
+                                // 恢复之前的展开状态
+                                setTimeout(() => {
+                                    document.querySelectorAll('.link-header').forEach(header => {
+                                        const index = header.getAttribute('data-index');
+                                        const content = header.nextElementSibling;
+                                        const icon = header.querySelector('.link-toggle-icon');
+                                        
+                                        if (expandedStates[index]) {
+                                            content.classList.remove('hidden');
+                                            if (icon) {
+                                                icon.style.transform = 'rotate(180deg)';
+                                            }
+                                        }
+                                    });
+                                }, 50);
+                                
                                 renderDisplayLinks();
                                 showToast('成功', '商品删除成功', 'success');
                             }
@@ -3088,6 +3208,14 @@
             
             // 复制商品
             function copyProduct(linkIndex, productIndex) {
+                // 保存所有卡片的展开状态
+                const expandedStates = {};
+                document.querySelectorAll('.link-header').forEach(header => {
+                    const index = header.getAttribute('data-index');
+                    const isExpanded = !header.nextElementSibling.classList.contains('hidden');
+                    expandedStates[index] = isExpanded;
+                });
+                
                 const originalProduct = pricingData.links[linkIndex].products[productIndex];
                 const copiedProduct = JSON.parse(JSON.stringify(originalProduct));
                 copiedProduct.id = Date.now().toString();
@@ -3097,6 +3225,23 @@
                 pricingData.links[linkIndex].products.push(copiedProduct);
                 savePricingData();
                 renderLinks();
+                
+                // 恢复之前的展开状态
+                setTimeout(() => {
+                    document.querySelectorAll('.link-header').forEach(header => {
+                        const index = header.getAttribute('data-index');
+                        const content = header.nextElementSibling;
+                        const icon = header.querySelector('.link-toggle-icon');
+                        
+                        if (expandedStates[index]) {
+                            content.classList.remove('hidden');
+                            if (icon) {
+                                icon.style.transform = 'rotate(180deg)';
+                            }
+                        }
+                    });
+                }, 50);
+                
                 renderDisplayLinks();
                 showToast('成功', '商品复制成功', 'success');
             }
@@ -3355,6 +3500,13 @@
                     const noteTextarea = document.getElementById('spec-note-content');
                     noteTextarea.value = spec.note || '';
                     
+                    // 设置颜色选择器
+                    const colorPicker = document.getElementById('spec-color-picker');
+                    const colorPreview = document.getElementById('color-preview');
+                    colorPicker.value = spec.color || '#9ca3af';
+                    colorPreview.textContent = spec.color || '#9ca3af';
+                    colorPreview.style.color = spec.color || '#9ca3af';
+                    
                     // 存储索引信息
                     document.getElementById('edit-spec-note-modal').dataset.linkIndex = linkIndex;
                     document.getElementById('edit-spec-note-modal').dataset.productIndex = productIndex;
@@ -3369,6 +3521,12 @@
                     setTimeout(() => {
                         noteTextarea.focus();
                     }, 100);
+                    
+                    // 添加颜色选择器事件监听
+                    colorPicker.addEventListener('input', function() {
+                        colorPreview.textContent = this.value;
+                        colorPreview.style.color = this.value;
+                    });
                     
                     console.log('=== 编辑规格备注模态框打开完成 ===');
                     
@@ -3399,6 +3557,7 @@
                     const productIndex = parseInt(modal.dataset.productIndex);
                     const specIndex = parseInt(modal.dataset.specIndex);
                     const noteContent = document.getElementById('spec-note-content').value.trim();
+                    const colorValue = document.getElementById('spec-color-picker').value;
                     
                     console.log('链接索引:', linkIndex, '商品索引:', productIndex, '规格索引:', specIndex);
                     
@@ -3411,8 +3570,9 @@
                         return;
                     }
                     
-                    // 更新备注
+                    // 更新备注和颜色
                     pricingData.links[linkIndex].products[productIndex].specs[specIndex].note = noteContent;
+                    pricingData.links[linkIndex].products[productIndex].specs[specIndex].color = colorValue;
                     
                     console.log('备注已更新:', noteContent);
                     
@@ -4548,6 +4708,13 @@
                     <div id="spec-note-info" class="text-sm text-gray-600"></div>
                 </div>
                 <div class="mb-4">
+                    <label for="spec-color-picker" class="block text-sm font-medium text-gray-700 mb-1">SKU颜色标记</label>
+                    <div class="flex items-center space-x-3">
+                        <input type="color" id="spec-color-picker" class="w-10 h-10 rounded border-0 cursor-pointer" value="#9ca3af">
+                        <span id="color-preview" class="text-sm text-gray-600">选择颜色</span>
+                    </div>
+                </div>
+                <div class="mb-4">
                     <label for="spec-note-content" class="block text-sm font-medium text-gray-700 mb-1">备注内容</label>
                     <textarea id="spec-note-content" rows="4" class="input-field w-full text-sm" placeholder="请输入备注内容"></textarea>
                 </div>
@@ -4879,6 +5046,10 @@
                     <input type="text" id="shop-name" class="input-field" required="">
                 </div>
                 <div class="mb-4">
+                    <label for="shop-display-id" class="block text-sm font-medium text-gray-700 mb-1">店铺ID</label>
+                    <input type="text" id="shop-display-id" class="input-field" placeholder="请输入店铺显示ID">
+                </div>
+                <div class="mb-4">
                     <label for="shop-products" class="block text-sm font-medium text-gray-700 mb-1">商品ID（每行一个）</label>
                     <textarea id="shop-products" class="input-field" rows="6" placeholder="请输入商品ID，每行一个"></textarea>
                 </div>
@@ -4921,6 +5092,60 @@
             platform: [],
             accessory: []
         };
+        
+        // 动态定位悬浮窗 - 完全重写的解决方案
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取所有tooltip容器
+            const tooltipContainers = document.querySelectorAll('.tooltip-container');
+            
+            // 为每个容器添加事件监听
+            tooltipContainers.forEach(container => {
+                // 获取悬浮窗和箭头元素
+                const tooltip = container.querySelector('.tooltip-content');
+                const arrow = container.querySelector('.tooltip-arrow');
+                
+                if (tooltip && arrow) {
+                    // 鼠标进入时显示悬浮窗
+                    container.addEventListener('mouseenter', function(e) {
+                        // 确保使用fixed定位
+                        tooltip.style.position = 'fixed';
+                        tooltip.style.zIndex = '9999';
+                        tooltip.style.transform = 'none';
+                        tooltip.style.margin = '0';
+                        
+                        // 立即定位到鼠标位置
+                        updateTooltipPosition(e);
+                    });
+                    
+                    // 鼠标移动时更新位置
+                    container.addEventListener('mousemove', updateTooltipPosition);
+                    
+                    // 鼠标离开时隐藏悬浮窗
+                    container.addEventListener('mouseleave', function() {
+                        tooltip.style.opacity = '0';
+                        tooltip.style.visibility = 'hidden';
+                        arrow.style.opacity = '0';
+                        arrow.style.visibility = 'hidden';
+                    });
+                }
+                
+                // 更新悬浮窗位置的函数
+                function updateTooltipPosition(e) {
+                    // 强制更新位置，确保始终基于当前鼠标坐标
+                    tooltip.style.left = (e.clientX - 40) + 'px'; // 调整水平偏移
+                    tooltip.style.top = (e.clientY + 15) + 'px';  // 调整垂直偏移，确保在鼠标下方
+                    
+                    // 确保箭头位置正确
+                    arrow.style.left = '10px';
+                    
+                    // 显示悬浮窗
+                    tooltip.style.opacity = '1';
+                    tooltip.style.visibility = 'visible';
+                    arrow.style.opacity = '1';
+                    arrow.style.visibility = 'visible';
+                }
+            });
+        });
 
         let shops = JSON.parse(localStorage.getItem('shops')) || [];
         // 从localStorage加载数据，使用LZ-String解压缩
@@ -5528,6 +5753,7 @@
                 title.textContent = '编辑店铺';
                 document.getElementById('shop-id').value = shop.id;
                 document.getElementById('shop-name').value = shop.name;
+                document.getElementById('shop-display-id').value = shop.displayId || '';
                 document.getElementById('shop-products').value = shop.productIds.join('\n');
             } else {
                 title.textContent = '添加店铺';
@@ -5545,6 +5771,7 @@
         function saveShop() {
             const shopId = document.getElementById('shop-id').value;
             const shopName = document.getElementById('shop-name').value.trim();
+            const shopDisplayId = document.getElementById('shop-display-id').value.trim();
             const shopProducts = document.getElementById('shop-products').value.trim();
             
             if (!shopName) {
@@ -5560,6 +5787,7 @@
                 shops[shopIndex] = {
                     ...shops[shopIndex],
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds
                 };
                 showToast('成功', '店铺更新成功');
@@ -5568,6 +5796,7 @@
                 shops.push({
                     id: Date.now().toString(),
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds,
                     createdAt: new Date().toISOString()
                 });
@@ -5670,7 +5899,7 @@
                             <span>添加商品ID</span>
                         </button>
                         <div class="text-xs text-gray-400">
-                            ID: ${shop.id}
+                            ID: ${shop.displayId || shop.id}
                         </div>
                     </div>
                 </div>
@@ -6682,6 +6911,7 @@
                 title.textContent = '编辑店铺';
                 document.getElementById('shop-id').value = shop.id;
                 document.getElementById('shop-name').value = shop.name;
+                document.getElementById('shop-display-id').value = shop.displayId || '';
                 document.getElementById('shop-products').value = shop.productIds.join('\n');
             } else {
                 title.textContent = '添加店铺';
@@ -6699,6 +6929,7 @@
         function saveShop() {
             const shopId = document.getElementById('shop-id').value;
             const shopName = document.getElementById('shop-name').value.trim();
+            const shopDisplayId = document.getElementById('shop-display-id').value.trim();
             const shopProducts = document.getElementById('shop-products').value.trim();
             
             if (!shopName) {
@@ -6714,6 +6945,7 @@
                 shops[shopIndex] = {
                     ...shops[shopIndex],
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds
                 };
                 showToast('成功', '店铺更新成功');
@@ -6722,6 +6954,7 @@
                 shops.push({
                     id: Date.now().toString(),
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds,
                     createdAt: new Date().toISOString()
                 });
@@ -6824,7 +7057,7 @@
                             <span>添加商品ID</span>
                         </button>
                         <div class="text-xs text-gray-400">
-                            ID: ${shop.id}
+                            ID: ${shop.displayId || shop.id}
                         </div>
                     </div>
                 </div>
@@ -7644,6 +7877,7 @@
                 title.textContent = '编辑店铺';
                 document.getElementById('shop-id').value = shop.id;
                 document.getElementById('shop-name').value = shop.name;
+                document.getElementById('shop-display-id').value = shop.displayId || '';
                 document.getElementById('shop-products').value = shop.productIds.join('\n');
             } else {
                 title.textContent = '添加店铺';
@@ -7661,6 +7895,7 @@
         function saveShop() {
             const shopId = document.getElementById('shop-id').value;
             const shopName = document.getElementById('shop-name').value.trim();
+            const shopDisplayId = document.getElementById('shop-display-id').value.trim();
             const shopProducts = document.getElementById('shop-products').value.trim();
             
             if (!shopName) {
@@ -7676,6 +7911,7 @@
                 shops[shopIndex] = {
                     ...shops[shopIndex],
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds
                 };
                 showToast('成功', '店铺更新成功');
@@ -7684,6 +7920,7 @@
                 shops.push({
                     id: Date.now().toString(),
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds,
                     createdAt: new Date().toISOString()
                 });
@@ -7786,7 +8023,7 @@
                             <span>添加商品ID</span>
                         </button>
                         <div class="text-xs text-gray-400">
-                            ID: ${shop.id}
+                            ID: ${shop.displayId || shop.id}
                         </div>
                     </div>
                 </div>
@@ -8614,6 +8851,7 @@
                 title.textContent = '编辑店铺';
                 document.getElementById('shop-id').value = shop.id;
                 document.getElementById('shop-name').value = shop.name;
+                document.getElementById('shop-display-id').value = shop.displayId || '';
                 document.getElementById('shop-products').value = shop.productIds.join('\n');
             } else {
                 title.textContent = '添加店铺';
@@ -8631,6 +8869,7 @@
         function saveShop() {
             const shopId = document.getElementById('shop-id').value;
             const shopName = document.getElementById('shop-name').value.trim();
+            const shopDisplayId = document.getElementById('shop-display-id').value.trim();
             const shopProducts = document.getElementById('shop-products').value.trim();
             
             if (!shopName) {
@@ -8646,6 +8885,7 @@
                 shops[shopIndex] = {
                     ...shops[shopIndex],
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds
                 };
                 showToast('成功', '店铺更新成功');
@@ -8654,6 +8894,7 @@
                 shops.push({
                     id: Date.now().toString(),
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds,
                     createdAt: new Date().toISOString()
                 });
@@ -8756,7 +8997,7 @@
                             <span>添加商品ID</span>
                         </button>
                         <div class="text-xs text-gray-400">
-                            ID: ${shop.id}
+                            ID: ${shop.displayId || shop.id}
                         </div>
                     </div>
                 </div>
@@ -9931,6 +10172,7 @@
                 title.textContent = '编辑店铺';
                 document.getElementById('shop-id').value = shop.id;
                 document.getElementById('shop-name').value = shop.name;
+                document.getElementById('shop-display-id').value = shop.displayId || '';
                 document.getElementById('shop-products').value = shop.productIds.join('\n');
             } else {
                 title.textContent = '添加店铺';
@@ -9948,6 +10190,7 @@
         function saveShop() {
             const shopId = document.getElementById('shop-id').value;
             const shopName = document.getElementById('shop-name').value.trim();
+            const shopDisplayId = document.getElementById('shop-display-id').value.trim();
             const shopProducts = document.getElementById('shop-products').value.trim();
             
             if (!shopName) {
@@ -9963,6 +10206,7 @@
                 shops[shopIndex] = {
                     ...shops[shopIndex],
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds
                 };
                 showToast('成功', '店铺更新成功');
@@ -9971,6 +10215,7 @@
                 shops.push({
                     id: Date.now().toString(),
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds,
                     createdAt: new Date().toISOString()
                 });
@@ -10073,7 +10318,7 @@
                             <span>添加商品ID</span>
                         </button>
                         <div class="text-xs text-gray-400">
-                            ID: ${shop.id}
+                            ID: ${shop.displayId || shop.id}
                         </div>
                     </div>
                 </div>
@@ -11380,6 +11625,7 @@
                 title.textContent = '编辑店铺';
                 document.getElementById('shop-id').value = shop.id;
                 document.getElementById('shop-name').value = shop.name;
+                document.getElementById('shop-display-id').value = shop.displayId || '';
                 document.getElementById('shop-products').value = shop.productIds.join('\n');
             } else {
                 title.textContent = '添加店铺';
@@ -11397,6 +11643,7 @@
         function saveShop() {
             const shopId = document.getElementById('shop-id').value;
             const shopName = document.getElementById('shop-name').value.trim();
+            const shopDisplayId = document.getElementById('shop-display-id').value.trim();
             const shopProducts = document.getElementById('shop-products').value.trim();
             
             if (!shopName) {
@@ -11412,6 +11659,7 @@
                 shops[shopIndex] = {
                     ...shops[shopIndex],
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds
                 };
                 showToast('成功', '店铺更新成功');
@@ -11420,6 +11668,7 @@
                 shops.push({
                     id: Date.now().toString(),
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds,
                     createdAt: new Date().toISOString()
                 });
@@ -11522,7 +11771,7 @@
                             <span>添加商品ID</span>
                         </button>
                         <div class="text-xs text-gray-400">
-                            ID: ${shop.id}
+                            ID: ${shop.displayId || shop.id}
                         </div>
                     </div>
                 </div>
@@ -12016,6 +12265,7 @@
                 title.textContent = '编辑店铺';
                 document.getElementById('shop-id').value = shop.id;
                 document.getElementById('shop-name').value = shop.name;
+                document.getElementById('shop-display-id').value = shop.displayId || '';
                 document.getElementById('shop-products').value = shop.productIds.join('\n');
             } else {
                 title.textContent = '添加店铺';
@@ -12033,6 +12283,7 @@
         function saveShop() {
             const shopId = document.getElementById('shop-id').value;
             const shopName = document.getElementById('shop-name').value.trim();
+            const shopDisplayId = document.getElementById('shop-display-id').value.trim();
             const shopProducts = document.getElementById('shop-products').value.trim();
             
             if (!shopName) {
@@ -12048,6 +12299,7 @@
                 shops[shopIndex] = {
                     ...shops[shopIndex],
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds
                 };
                 showToast('成功', '店铺更新成功');
@@ -12056,6 +12308,7 @@
                 shops.push({
                     id: Date.now().toString(),
                     name: shopName,
+                    displayId: shopDisplayId,
                     productIds: productIds,
                     createdAt: new Date().toISOString()
                 });
@@ -12158,7 +12411,7 @@
                             <span>添加商品ID</span>
                         </button>
                         <div class="text-xs text-gray-400">
-                            ID: ${shop.id}
+                            ID: ${shop.displayId || shop.id}
                         </div>
                     </div>
                 </div>
