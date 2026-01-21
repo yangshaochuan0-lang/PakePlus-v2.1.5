@@ -2033,8 +2033,8 @@
                         console.log('Filtering to show only link index:', currentViewingLinkIndex);
                         linksToDisplay = [pricingData.links[currentViewingLinkIndex]];
                     } else {
-                        console.log('No specific link selected, showing all links');
-                        linksToDisplay = pricingData.links;
+                        console.log('No specific link selected, showing empty state');
+                        // 默认不显示任何链接
                     }
                     
                     if (linksToDisplay.length === 0) {
@@ -2091,7 +2091,6 @@
                                                            maxlength="32"
                                                            placeholder="请输入SKU" 
                                                            style="min-width: 120px;"
-                                                           oninput="formatSKU(this)"
                                                            onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'skuCode', this.value)">
                                                     ${spec.skuCode ? `<button type="button" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600" onclick="clearSKU(this, ${linkIndex}, ${productIndex}, ${specIndex})">
                                                         <i class="fa fa-times-circle"></i>
@@ -2101,7 +2100,7 @@
                                             <td class="px-3 py-2 whitespace-nowrap">
                                                 <input type="text" class="input-field text-sm py-1 px-2" value="${spec.specCode || ''}" 
                                                        onchange="updateSpecFieldWithUnlink(${linkIndex}, ${productIndex}, ${specIndex}, 'specCode', this.value)"
-                                                       placeholder="请输入规格编码" style="min-width: 180px;">
+                                                       placeholder="请输入规格编码" style="min-width: 180px;" pattern=".*" title="可以输入任何字符">
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-right">
                                                 <div class="flex items-center justify-end space-x-1">
@@ -3444,10 +3443,8 @@
             
             // 格式化SKU输入
             function formatSKU(input) {
-                // 移除非字母数字和下划线字符
-                let value = input.value.replace(/[^a-zA-Z0-9_]/g, '');
-                // 限制长度为32个字符
-                value = value.substring(0, 32);
+                // 不再限制字符类型，只限制长度为32个字符
+                let value = input.value.substring(0, 32);
                 input.value = value;
                 // 同步到dataset
                 input.dataset.value = value;
@@ -13286,10 +13283,8 @@
     </script>
 
     <script>
-        // 格式化SKU（仅保留字母、数字、下划线，限制32位）
+        // 格式化SKU（只限制32位长度，不再限制字符类型）
         function formatSKU(input) {
-            // 过滤特殊字符（电商SKU通用规范）
-            input.value = input.value.replace(/[^a-zA-Z0-9_]/g, '');
             // 限制最大长度32位
             if (input.value.length > 32) {
                 input.value = input.value.substring(0, 32);
