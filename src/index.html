@@ -2149,8 +2149,13 @@
                                             <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${grossProfitRate >= 0 ? 'text-success' : 'text-danger'}">
                                                 ${grossProfitRate.toFixed(2)}%
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${grossProfitRate > 0 ? 'text-primary' : 'text-danger'}">
-                                                ${grossProfitRate > 0 ? calculateBreakEven(parseFloat(spec.sellingPrice || 0) || 0, parseFloat(spec.cost || 0) || 0, parseFloat(spec.signRate || 100)).toFixed(2) : '-'}
+                                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                                                <span class="text-sm font-medium cursor-pointer hover:bg-primary/10 px-1 py-0.5 rounded transition-colors duration-200 ${grossProfitRate > 0 ? 'text-primary' : 'text-danger'}" 
+                                                      onclick="toggleBreakEvenCalculation(${linkIndex}, ${productIndex}, ${specIndex})"
+                                                      title="${breakEvenAutoCalculation[`${linkIndex}-${productIndex}-${specIndex}`] ? '点击开启计算' : '点击关闭计算'}">
+                                                    ${breakEvenAutoCalculation[`${linkIndex}-${productIndex}-${specIndex}`] ? '🔒' : 
+                                                      (grossProfitRate > 0 ? calculateBreakEven(parseFloat(spec.sellingPrice || 0) || 0, parseFloat(spec.cost || 0) || 0, parseFloat(spec.signRate || 100)).toFixed(2) : '-')}
+                                                </span>
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-bold ${pricingPrice >= 0 ? 'text-primary' : 'text-danger'} bg-primary/5 rounded-lg">
                                                 ¥${pricingPrice.toFixed(2)}
@@ -2410,6 +2415,30 @@
                 }
             }
             
+            // 切换保本投产比的自动计算状态
+            function toggleBreakEvenCalculation(linkIndex, productIndex, specIndex) {
+                const key = `${linkIndex}-${productIndex}-${specIndex}`;
+                // 切换状态（默认是自动计算）
+                breakEvenAutoCalculation[key] = !breakEvenAutoCalculation[key];
+                
+                // 如果关闭自动计算，保存当前计算值作为固定值
+                if (breakEvenAutoCalculation[key]) {
+                    const spec = pricingData.links[linkIndex].products[productIndex].specs[specIndex];
+                    const sellingPrice = parseFloat(spec.sellingPrice || 0) || 0;
+                    const cost = parseFloat(spec.cost || 0) || 0;
+                    const signRate = parseFloat(spec.signRate || 100);
+                    spec.fixedBreakEven = calculateBreakEven(sellingPrice, cost, signRate).toFixed(2);
+                    savePricingData();
+                }
+                
+                // 重新渲染显示链接
+                renderDisplayLinks();
+                
+                // 显示提示
+                const status = breakEvenAutoCalculation[key] ? '已关闭自动计算' : '已开启自动计算';
+                showToast('提示', `保本投产比${status}`, 'info');
+            }
+            
             // 计算平均保本投产
             function calculateAverageBreakEven(specs) {
                 try {
@@ -2420,8 +2449,12 @@
                     let totalBreakEven = 0;
                     let validCount = 0;
                     
-                    specs.forEach(spec => {
+                    specs.forEach((spec, specIndex) => {
                         try {
+                            // 检查是否关闭了自动计算
+                            const isCalculationDisabled = breakEvenAutoCalculation[`0-0-${specIndex}`];
+                            if (isCalculationDisabled) return; // 跳过已关闭计算的规格
+                            
                             const cost = parseFloat(spec.cost || 0) || 0;
                             const sellingPrice = parseFloat(spec.sellingPrice || 0) || 0;
                             const profit = sellingPrice - cost;
@@ -2837,6 +2870,9 @@
             // 当前查看的链接索引和商品索引
             let currentViewingLinkIndex = -1;
             let currentViewingProductIndex = -1;
+            
+            // 存储每个规格的保本投产比自动计算状态
+            let breakEvenAutoCalculation = {};
             
             // 查看链接详情
             function viewLinkDetails(index) {
