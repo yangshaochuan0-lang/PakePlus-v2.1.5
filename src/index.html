@@ -2102,9 +2102,9 @@
                                                        onchange="updateSpecFieldWithUnlink(${linkIndex}, ${productIndex}, ${specIndex}, 'specCode', this.value)"
                                                        placeholder="请输入规格编码" style="min-width: 180px;" pattern=".*" title="可以输入任何字符">
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                                <div class="flex items-center justify-end space-x-1">
-                                                    <input type="number" class="input-field text-sm py-1 px-2 text-right" value="${parseFloat(cost).toFixed(2)}" 
+                                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                                                <div class="flex items-center justify-center space-x-1">
+                                                    <input type="number" class="input-field text-sm py-1 px-2 text-center" value="${parseFloat(cost).toFixed(2)}" 
                                                            step="0.01" min="0" 
                                                            onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'cost', this.value); removeCostLink(${linkIndex}, ${productIndex}, ${specIndex})" 
                                                            style="max-width: 90px;"
@@ -2119,37 +2119,37 @@
                                                     </button>
                                                 </div>
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                                <input type="number" class="input-field text-sm py-1 px-2 text-right" 
+                                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                                                <input type="number" class="input-field text-sm py-1 px-2 text-center" 
                                                        value="${couponAmount}" 
                                                        step="0.01" min="0" 
                                                        onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'couponAmount', this.value)" style="max-width: 70px;">
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                                <input type="number" class="input-field text-sm py-1 px-2 text-right" 
+                                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                                                <input type="number" class="input-field text-sm py-1 px-2 text-center" 
                                                        value="${safeActivityDiscount}" 
                                                        step="0.01" min="0.01" max="1" 
                                                        onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'activityDiscount', this.value)" style="max-width: 90px;">
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                                <input type="number" class="input-field text-sm py-1 px-2 text-right" 
+                                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                                                <input type="number" class="input-field text-sm py-1 px-2 text-center" 
                                                        value="${parseFloat(spec.signRate || 100).toFixed(2)}" 
                                                        step="0.01" min="0" max="100" 
                                                        onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'signRate', this.value)" style="max-width: 100px;">
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right">
-                                                <input type="number" class="input-field text-sm py-1 px-2 text-right" 
+                                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                                                <input type="number" class="input-field text-sm py-1 px-2 text-center" 
                                                        value="${parseFloat(sellingPrice).toFixed(2)}" 
                                                        step="0.01" min="0" 
                                                        onchange="updateSpecField(${linkIndex}, ${productIndex}, ${specIndex}, 'sellingPrice', this.value)" style="max-width: 110px;">
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${profit >= 0 ? 'text-success' : 'text-danger'}">
+                                            <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-medium ${profit >= 0 ? 'text-success' : 'text-danger'}">
                                                 ${profit.toFixed(2)}
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium ${grossProfitRate >= 0 ? 'text-success' : 'text-danger'}">
+                                            <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-medium ${grossProfitRate >= 0 ? 'text-success' : 'text-danger'}">
                                                 ${grossProfitRate.toFixed(2)}%
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                                            <td class="px-3 py-2 whitespace-nowrap text-center">
                                                 <span class="text-sm font-medium cursor-pointer hover:bg-primary/10 px-1 py-0.5 rounded transition-colors duration-200 ${grossProfitRate > 0 ? 'text-primary' : 'text-danger'}" 
                                                       onclick="toggleBreakEvenCalculation(${linkIndex}, ${productIndex}, ${specIndex})"
                                                       title="${breakEvenAutoCalculation[`${linkIndex}-${productIndex}-${specIndex}`] ? '点击开启计算' : '点击关闭计算'}">
@@ -2157,7 +2157,7 @@
                                                       (grossProfitRate > 0 ? calculateBreakEven(parseFloat(spec.sellingPrice || 0) || 0, parseFloat(spec.cost || 0) || 0, parseFloat(spec.signRate || 100)).toFixed(2) : '-')}
                                                 </span>
                                             </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-bold ${pricingPrice >= 0 ? 'text-primary' : 'text-danger'} bg-primary/5 rounded-lg">
+                                            <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-bold ${pricingPrice >= 0 ? 'text-primary' : 'text-danger'} bg-primary/5 rounded-lg">
                                                 ¥${pricingPrice.toFixed(2)}
                                             </td>
                                             <td class="py-2 whitespace-nowrap text-center" style="padding: 2px 0 2px 8px; min-width: 40px;">
@@ -2451,8 +2451,20 @@
                     
                     specs.forEach((spec, specIndex) => {
                         try {
-                            // 检查是否关闭了自动计算
-                            const isCalculationDisabled = breakEvenAutoCalculation[`0-0-${specIndex}`];
+                            // 检查是否关闭了自动计算（支持所有商品卡）
+                            let isCalculationDisabled = false;
+                            // 尝试查找所有可能的键格式
+                            for (let linkIdx = 0; linkIdx < 10; linkIdx++) { // 假设最多10个链接
+                                for (let productIdx = 0; productIdx < 10; productIdx++) { // 假设每个链接最多10个商品
+                                    const key = `${linkIdx}-${productIdx}-${specIndex}`;
+                                    if (breakEvenAutoCalculation[key]) {
+                                        isCalculationDisabled = true;
+                                        break;
+                                    }
+                                }
+                                if (isCalculationDisabled) break;
+                            }
+                            
                             if (isCalculationDisabled) return; // 跳过已关闭计算的规格
                             
                             const cost = parseFloat(spec.cost || 0) || 0;
